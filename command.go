@@ -21,6 +21,9 @@ type Cmder interface {
 	readReply(*pool.Conn) error
 	setErr(error)
 
+	SetChainBuf([][]byte)
+	GetChainBuf() [][]byte
+
 	readTimeout() *time.Duration
 
 	Err() error
@@ -100,6 +103,8 @@ type baseCmd struct {
 	_args []interface{}
 	err   error
 
+	chainBuf [][]byte
+
 	_readTimeout *time.Duration
 }
 
@@ -111,6 +116,14 @@ func (cmd *baseCmd) Err() error {
 
 func (cmd *baseCmd) Args() []interface{} {
 	return cmd._args
+}
+
+func (cmd *baseCmd) SetChainBuf(buf [][]byte) {
+	cmd.chainBuf = buf
+}
+
+func (cmd *baseCmd) GetChainBuf() [][]byte {
+	return cmd.chainBuf
 }
 
 func (cmd *baseCmd) stringArg(pos int) string {

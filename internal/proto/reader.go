@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/go-redis/redis/internal/util"
+	"bytes"
 )
 
 const bytesAllocLimit = 1024 * 1024 // 1mb
@@ -17,6 +18,9 @@ const (
 	IntReply    = ':'
 	StringReply = '$'
 	ArrayReply  = '*'
+
+	ReqArgMark  = '*'
+	ReqSizeMark  = '$'
 )
 
 //------------------------------------------------------------------------------
@@ -32,8 +36,13 @@ func (e RedisError) Error() string { return string(e) }
 type MultiBulkParse func(*Reader, int64) (interface{}, error)
 
 type Reader struct {
-	src *bufio.Reader
-	buf []byte
+	src      *bufio.Reader
+	buf      []byte
+	chainBuf [][]byte
+}
+
+func (r *Reader) ChainBuf() [][]byte {
+	return r.chainBuf
 }
 
 func NewReader(rd io.Reader) *Reader {
@@ -45,6 +54,11 @@ func NewReader(rd io.Reader) *Reader {
 
 func (r *Reader) Reset(rd io.Reader) {
 	r.src.Reset(rd)
+	r.chainBuf = nil
+}
+
+func (r *Reader) ResetChainBuf() {
+	r.chainBuf = nil
 }
 
 func (r *Reader) PeekBuffered() []byte {
@@ -57,6 +71,9 @@ func (r *Reader) PeekBuffered() []byte {
 
 func (r *Reader) ReadN(n int) ([]byte, error) {
 	b, err := readN(r.src, r.buf, n)
+	tmpBuf := make([]byte, n)
+	copy(tmpBuf, b)
+	r.chainBuf = append(r.chainBuf, tmpBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -66,6 +83,11 @@ func (r *Reader) ReadN(n int) ([]byte, error) {
 
 func (r *Reader) ReadLine() ([]byte, error) {
 	line, isPrefix, err := r.src.ReadLine()
+	tmpBuf := make([]byte, len(line) + 2)
+	tmpBuf[len(line)] = '\r'
+	tmpBuf[len(line) + 1] = '\n'
+	copy(tmpBuf, line)
+	r.chainBuf = append(r.chainBuf, tmpBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -325,4 +347,55 @@ func parseArrayLen(line []byte) (int64, error) {
 		return 0, Nil
 	}
 	return util.ParseInt(line[1:], 10, 64)
+}
+
+/** below is reply parser*/
+
+
+
+func (r *Reader) ReadReq() ([]interface{}, error) {
+	argLen, err := r.ReadReqArgLen()
+	if err != nil {
+		return nil, err
+	}
+
+	if argLen <= 0 {
+		return nil, fmt.Errorf("redis: read req arg len zero")
+	}
+
+	var i int64
+	var ret []interface{}
+	for i = 0; i < argLen; i++ {
+		item, err := r.ReadReqArg()
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, bytes.NewBuffer(item).String())
+	}
+	return ret, nil
+}
+
+func (r *Reader) ReadReqArgLen() (int64, error) {
+	line, err := r.ReadLine()
+	if err != nil {
+		return 0, err
+	}
+	switch line[0] {
+	case ReqArgMark:
+		return parseArrayLen(line)
+	default:
+		return 0, fmt.Errorf("redis: can't parse req arg len: %.100q", line)
+	}
+}
+
+func (r *Reader) ReadReqArg() ([]byte, error) {
+	line, err := r.ReadLine()
+	if err != nil {
+		return nil, err
+	}
+	switch line[0] {
+	case ReqSizeMark:
+		return r.readTmpBytesValue(line)
+	}
+	return nil, fmt.Errorf("redis: can't parse req arg %.100q", line)
 }

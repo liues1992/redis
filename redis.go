@@ -145,6 +145,7 @@ func (c *baseClient) defaultProcess(cmd Cmder) error {
 			}
 			return err
 		}
+		cn.Rd.ResetChainBuf()
 
 		cn.SetWriteTimeout(c.opt.WriteTimeout)
 		if err := writeCmd(cn, cmd); err != nil {
@@ -158,6 +159,7 @@ func (c *baseClient) defaultProcess(cmd Cmder) error {
 
 		cn.SetReadTimeout(c.cmdTimeout(cmd))
 		err = cmd.readReply(cn)
+		cmd.SetChainBuf(cn.Rd.ChainBuf())
 		c.releaseConn(cn, err)
 		if err != nil && internal.IsRetryableError(err, cmd.readTimeout() == nil) {
 			continue
