@@ -262,7 +262,9 @@ func (c *baseClient) pipelineProcessCmds(cn *pool.Conn, cmds []Cmder) (bool, err
 
 func pipelineReadCmds(cn *pool.Conn, cmds []Cmder) error {
 	for _, cmd := range cmds {
+		cn.Rd.ResetChainBuf()
 		err := cmd.readReply(cn)
+		cmd.SetChainBuf(cn.Rd.ChainBuf())
 		if err != nil && !internal.IsRedisError(err) {
 			return err
 		}

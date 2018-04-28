@@ -327,7 +327,8 @@ func (c *clusterNodes) GetOrCreate(addr string) (*clusterNode, error) {
 	}
 
 	node, ok := c.allNodes[addr]
-	if ok {
+	if ok && node != v {
+		//panic(fmt.Sprintf("[%s] cannot get addr: %s, all:%v, err:%s node:%p, v:%p\n", id, addr, c.allNodes, err, node, v))
 		_ = v.(*clusterNode).Close()
 		return node, err
 	}
@@ -1145,7 +1146,9 @@ func (c *ClusterClient) pipelineReadCmds(
 	cn *pool.Conn, cmds []Cmder, failedCmds map[*clusterNode][]Cmder,
 ) error {
 	for _, cmd := range cmds {
+		cn.Rd.ResetChainBuf()
 		err := cmd.readReply(cn)
+		cmd.SetChainBuf(cn.Rd.ChainBuf())
 		if err == nil {
 			continue
 		}

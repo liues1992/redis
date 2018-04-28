@@ -353,27 +353,52 @@ func parseArrayLen(line []byte) (int64, error) {
 
 
 
-func (r *Reader) ReadReq() ([]interface{}, error) {
-	argLen, err := r.ReadReqArgLen()
+func (r *Reader) ReadReq() ([]string, error) {
+	line, err := r.ReadLine()
 	if err != nil {
 		return nil, err
 	}
+	switch line[0] {
+	case ReqArgMark:
+		argLen, err := parseArrayLen(line)
+		if err != nil {
+			return nil, fmt.Errorf("redis: can't parse req arg len: %.100q", line)
+		}
+		return r.ReadReqMultiBulk(argLen)
+	default:
+		return r.ReadReqInline(line)
+	}
+}
 
+func (r *Reader) ReadReqInline(line []byte) ([]string, error) {
+	var tmp = make([]byte, len(line))
+	copy(tmp, line)
+	var ret []string
+	var sliced = bytes.Split(tmp, []byte{' '})
+
+	for _, sub := range sliced {
+		ret = append(ret, string(sub))
+	}
+	return ret, nil
+}
+
+func (r *Reader) ReadReqMultiBulk(argLen int64) ([]string, error) {
 	if argLen <= 0 {
 		return nil, fmt.Errorf("redis: read req arg len zero")
 	}
 
 	var i int64
-	var ret []interface{}
+	var ret []string
 	for i = 0; i < argLen; i++ {
 		item, err := r.ReadReqArg()
 		if err != nil {
 			return nil, err
 		}
-		ret = append(ret, bytes.NewBuffer(item).String())
+		ret = append(ret, string(item))
 	}
 	return ret, nil
 }
+
 
 func (r *Reader) ReadReqArgLen() (int64, error) {
 	line, err := r.ReadLine()
@@ -398,4 +423,8 @@ func (r *Reader) ReadReqArg() ([]byte, error) {
 		return r.readTmpBytesValue(line)
 	}
 	return nil, fmt.Errorf("redis: can't parse req arg %.100q", line)
+}
+
+func (r *Reader) HasMore() bool {
+	return r.src.Buffered() > 0
 }
