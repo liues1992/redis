@@ -6,7 +6,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/go-redis/redis/internal/util"
+	"github.com/liues1992/redis-proxy/internal/util"
 	"bytes"
 )
 
@@ -39,6 +39,7 @@ type Reader struct {
 	src      *bufio.Reader
 	buf      []byte
 	chainBuf [][]byte
+	cacheBuf bool
 }
 
 func (r *Reader) ChainBuf() [][]byte {
@@ -49,6 +50,7 @@ func NewReader(rd io.Reader) *Reader {
 	return &Reader{
 		src: bufio.NewReader(rd),
 		buf: make([]byte, 4096),
+		cacheBuf: true,
 	}
 }
 
@@ -71,9 +73,12 @@ func (r *Reader) PeekBuffered() []byte {
 
 func (r *Reader) ReadN(n int) ([]byte, error) {
 	b, err := readN(r.src, r.buf, n)
-	tmpBuf := make([]byte, n)
-	copy(tmpBuf, b)
-	r.chainBuf = append(r.chainBuf, tmpBuf)
+	if r.cacheBuf {
+		tmpBuf := make([]byte, n)
+		copy(tmpBuf, b)
+		r.chainBuf = append(r.chainBuf, tmpBuf)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -83,11 +88,14 @@ func (r *Reader) ReadN(n int) ([]byte, error) {
 
 func (r *Reader) ReadLine() ([]byte, error) {
 	line, isPrefix, err := r.src.ReadLine()
-	tmpBuf := make([]byte, len(line) + 2)
-	tmpBuf[len(line)] = '\r'
-	tmpBuf[len(line) + 1] = '\n'
-	copy(tmpBuf, line)
-	r.chainBuf = append(r.chainBuf, tmpBuf)
+	if r.cacheBuf {
+		tmpBuf := make([]byte, len(line) + 2)
+		tmpBuf[len(line)] = '\r'
+		tmpBuf[len(line) + 1] = '\n'
+		copy(tmpBuf, line)
+		r.chainBuf = append(r.chainBuf, tmpBuf)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -354,6 +362,7 @@ func parseArrayLen(line []byte) (int64, error) {
 
 
 func (r *Reader) ReadReq() ([]string, error) {
+	r.cacheBuf = false
 	line, err := r.ReadLine()
 	if err != nil {
 		return nil, err

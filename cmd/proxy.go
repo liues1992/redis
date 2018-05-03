@@ -1,48 +1,75 @@
 package main
 
-import "github.com/go-redis/redis"
+import "github.com/liues1992/redis-proxy"
 import (
 	"fmt"
-	"github.com/go-redis/redis/internal/proto"
+	"github.com/liues1992/redis-proxy/internal/proto"
 	"net"
 	"io"
 	"bufio"
 	"runtime"
+	"flag"
+	"strings"
+	"os"
 )
 
 func main() {
-    ExampleNewClient()
+    newProxyServer()
 }
 
-func ExampleNewClient() {
+// ./redis-proxy -listen 0.0.0.0:6379 -cluster -addr
+func newProxyServer() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	fmt.Println("Launching redis proxy server...")
 
 	//client := redis.NewClient(&redis.Options{
-	//	Addr:     "localhost:6379",
+	//	Addr:     "127.0.0.1:6379",
 	//	Password: "", // no password set
 	//	DB:       0,  // use default DB
 	//})
+	var cli redis.ClientInterface
+	listen := flag.String("l", ":6380", "addr to listen for")
+	cluster := flag.Bool("c", false, "enable cluster or not")
+	addr := flag.String("a", "127.0.0.1:6379", "addrs, separated by comma")
+	flag.Parse()
 
-	client := redis.NewClusterClient(&redis.ClusterOptions{
-		Addrs:     []string {
-			"localhost:30001",
-			"localhost:30002",
-			"localhost:30003",
-			"localhost:30004",
-			"localhost:30005",
-			"localhost:30006",
-		},
-		Password: "", // no password set
-	})
+	fmt.Println("Launching redis proxy server...")
+
+	fmt.Printf("Using cluster: %t, listen on: %s, proxy for: %s\n", *cluster, *listen, *addr)
+	if *cluster {
+		cli = redis.NewClusterClient(&redis.ClusterOptions{
+			Addrs:     strings.Split(*addr, ","),
+			Password: "", // no password set
+		})
+	} else {
+		cli = redis.NewClient(&redis.Options{
+			Addr:     *addr,
+			Password: "", // no password set
+			DB:       0,  // use default DB
+		})
+	}
+
+
 	// listen on all interfaces
-	ln, _ := net.Listen("tcp", ":6666")
+	listenAddr := *listen
+	var ln net.Listener
+	var err error
+	if strings.HasPrefix(listenAddr, "unix://") {
+		os.Remove(listenAddr[7:])
+		ln, err = net.Listen("unix", listenAddr[7:])
+	} else if strings.HasPrefix(listenAddr, "tcp://") {
+		ln, err = net.Listen("tcp", listenAddr[6:])
+	} else {
+		ln, err = net.Listen("tcp", listenAddr)
+	}
+	if err != nil {
+		panic("cannot listen:" + err.Error())
+	}
 
 	// accept connection on port
 	for {
 		conn, _ := ln.Accept()
 
-		go handleConn(conn, client)
+		go handleConn(conn, cli)
 	}
 
 
@@ -51,7 +78,7 @@ func ExampleNewClient() {
 	// Output: PONG <nil>
 }
 
-func handleConn(c net.Conn, cli *redis.ClusterClient) {
+func handleConn(c net.Conn, cli redis.ClientInterface) {
 	r := proto.NewReader(c)
 	w := bufio.NewWriter(c)
 
@@ -106,7 +133,7 @@ func handleConn(c net.Conn, cli *redis.ClusterClient) {
 
 			}
 			_, err := pipe.Exec()
-			if err != nil {
+			if err != nil && err != redis.Nil {
 				fmt.Println("pipeline exec error", err)
 			} else {
 				for _, cmd := range cmds {
@@ -118,6 +145,7 @@ func handleConn(c net.Conn, cli *redis.ClusterClient) {
 		w.Flush()
 	}
 }
+
 
 func processCmd(cmd *redis.Cmd, c net.Conn, w *bufio.Writer) {
 	var err error
@@ -141,6 +169,9 @@ func replyError(err error, c net.Conn) {
 		return
 	}
 	fmt.Println("proxy error: ", err)
+	if err == io.EOF {
+		err = proto.RedisError("Remote Server Closed")
+	}
 	var errReply = []byte("-")
 	errReply = append(errReply, []byte(err.Error() + "\r\n")...)
 	c.Write(errReply)

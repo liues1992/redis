@@ -9,8 +9,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/go-redis/redis"
-	"github.com/go-redis/redis/internal/proto"
+	"github.com/liues1992/redis-proxy"
+	"github.com/liues1992/redis-proxy/internal/proto"
 )
 
 var _ = Describe("Commands", func() {

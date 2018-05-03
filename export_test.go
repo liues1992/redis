@@ -4,7 +4,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/go-redis/redis/internal/pool"
+	"github.com/liues1992/redis-proxy/internal/pool"
 )
 
 func (c *baseClient) Pool() pool.Pooler {

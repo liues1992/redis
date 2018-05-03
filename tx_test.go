@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/go-redis/redis"
+	"github.com/liues1992/redis-proxy"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

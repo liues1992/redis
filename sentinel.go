@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis/internal"
-	"github.com/go-redis/redis/internal/pool"
+	"github.com/liues1992/redis-proxy/internal"
+	"github.com/liues1992/redis-proxy/internal/pool"
 )
 
 //------------------------------------------------------------------------------

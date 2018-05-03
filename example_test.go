@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis"
+	"github.com/liues1992/redis-proxy"
 )
 
 var client *redis.Client
