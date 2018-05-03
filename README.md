@@ -1,5 +1,15 @@
 # A simple Redis proxy base on [go-redis/redis](https://github.com/liues1992/redis-proxy)
 
+## Run
+```
+go build cmd/proxy.go
+./proxy -a 127.0.0.1:6379 -l :6380
+# or proxy a cluster
+./proxy -a 127.0.0.1:30001,127.0.0.1:30002 -l :6380 -c
+```
+
+## Below is the original README of go-redis/redis
+
 [![Build Status](https://travis-ci.org/go-redis/redis.png?branch=master)](https://travis-ci.org/go-redis/redis)
 [![GoDoc](https://godoc.org/github.com/liues1992/redis-proxy?status.svg)](https://godoc.org/github.com/liues1992/redis-proxy)
 [![Airbrake](https://img.shields.io/badge/kudos-airbrake.io-orange.svg)](https://airbrake.io)
