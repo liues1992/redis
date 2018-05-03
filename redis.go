@@ -457,6 +457,11 @@ func (c *Client) PSubscribe(channels ...string) *PubSub {
 	return pubsub
 }
 
+type ClientInterface interface {
+	Process(cmd Cmder) error
+	Pipeline() Pipeliner
+}
+
 //------------------------------------------------------------------------------
 
 // Conn is like Client, but its pool contains single connection.
