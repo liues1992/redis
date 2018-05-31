@@ -1,4 +1,4 @@
-# A simple Redis proxy base on [go-redis/redis](https://github.com/liues1992/redis-proxy)
+# A simple Redis proxy demo base on [go-redis/redis](https://github.com/liues1992/redis-proxy)
 
 ## Run
 ```
